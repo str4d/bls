@@ -5,8 +5,6 @@ use pairing::{CurveAffine, CurveProjective, Engine, Field};
 use rand::{Rand, Rng};
 use std::collections::HashSet;
 
-const HASH_KEY: &[u8] = b"BLSSignatureSeed";
-
 pub struct Signature<E: Engine> {
     s: E::G1,
 }
@@ -23,7 +21,7 @@ impl<E: Engine> SecretKey<E> {
     }
 
     pub fn sign(&self, message: &[u8]) -> Signature<E> {
-        let h = E::G1Affine::hash(HASH_KEY, message);
+        let h = E::G1Affine::hash(message);
         Signature { s: h.mul(self.x) }
     }
 }
@@ -41,7 +39,7 @@ impl<E: Engine> PublicKey<E> {
     }
 
     pub fn verify(&self, message: &[u8], signature: &Signature<E>) -> bool {
-        let h = E::G1Affine::hash(HASH_KEY, message);
+        let h = E::G1Affine::hash(message);
         let lhs = E::pairing(signature.s, E::G2Affine::one());
         let rhs = E::pairing(h, self.p_pub);
         lhs == rhs
@@ -98,7 +96,7 @@ impl<E: Engine> AggregateSignature<E> {
         let lhs = E::pairing(self.0.s, E::G2Affine::one());
         let mut rhs = E::Fqk::one();
         for input in inputs {
-            let h = E::G1Affine::hash(HASH_KEY, input.1);
+            let h = E::G1Affine::hash(input.1);
             rhs.mul_assign(&E::pairing(h, input.0.p_pub));
         }
         lhs == rhs
