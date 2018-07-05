@@ -116,7 +116,7 @@ mod tests {
 
         for i in 0..500 {
             let keypair = Keypair::<Bls12>::generate(&mut rng);
-            let message = format!("Message {}", i);
+            let message = format!(">16 character message {}", i);
             let sig = keypair.sign(&message.as_bytes());
             assert_eq!(keypair.verify(&message.as_bytes(), &sig), true);
         }
@@ -130,7 +130,7 @@ mod tests {
         let mut signatures = Vec::with_capacity(1000);
         for i in 0..500 {
             let keypair = Keypair::<Bls12>::generate(&mut rng);
-            let message = format!("Message {}", i);
+            let message = format!(">16 character message {}", i);
             let signature = keypair.sign(&message.as_bytes());
             inputs.push((keypair.public, message));
             signatures.push(signature);
@@ -158,7 +158,7 @@ mod tests {
 
         // Create the first signature
         let keypair = Keypair::<Bls12>::generate(&mut rng);
-        let message = "First message";
+        let message = ">16 char first message";
         let signature = keypair.sign(&message.as_bytes());
         inputs.push((keypair.public, message));
         asig.aggregate(&signature);
@@ -174,7 +174,7 @@ mod tests {
 
         // Create the second signature
         let keypair = Keypair::<Bls12>::generate(&mut rng);
-        let message = "Second message";
+        let message = ">16 char second message";
         let signature = keypair.sign(&message.as_bytes());
         inputs.push((keypair.public, message));
         asig.aggregate(&signature);
