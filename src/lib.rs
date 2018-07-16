@@ -30,6 +30,14 @@ pub struct PublicKey<E: Engine> {
     p_pub: E::G2,
 }
 
+impl<E: Engine> Clone for PublicKey<E> {
+    fn clone(&self) -> Self {
+        Self {
+            p_pub: self.p_pub.clone()
+        }
+    }
+}
+
 impl<E: Engine> PublicKey<E> {
     pub fn from_secret(secret: &SecretKey<E>) -> Self {
         // TODO Decide on projective vs affine
@@ -119,6 +127,19 @@ mod tests {
             let message = format!(">16 character message {}", i);
             let sig = keypair.sign(&message.as_bytes());
             assert_eq!(keypair.verify(&message.as_bytes(), &sig), true);
+        }
+    }
+
+    #[test]
+    fn sign_verify_with_cloned_public() {
+        let mut rng = XorShiftRng::from_seed([0xbc4f6d44, 0xd62f276c, 0xb963afd0, 0x5455863d]);
+
+        for i in 0..500 {
+            let keypair = Keypair::<Bls12>::generate(&mut rng);
+            let message = format!(">16 character message {}", i);
+            let sig = keypair.sign(&message.as_bytes());
+            let cloned_pub = keypair.public.clone();
+            assert_eq!(cloned_pub.verify(&message.as_bytes(), &sig), true);
         }
     }
 
