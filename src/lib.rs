@@ -110,15 +110,18 @@ impl<E: Engine> AggregateSignature<E> {
         lhs == rhs
     }
 
+    /// Verify a aggregate signatures over a common message.
+    ///
+    /// Warning: This method is vulnerable to the "rouge public-key attack".
+    /// Every user must be required to prove knowledge or possession of their
+    /// corresponding secret key. For more information, see: 
+    /// https://eprint.iacr.org/2018/483.pdf
     pub fn verify_common_message(
         &self,
         message: &[u8],
         pubkeys: &Vec<&PublicKey<E>>)
         -> bool
     {
-        // Messages must be identical
-        // Be warned of the rouge key attack:
-        // https://rist.tech.cornell.edu/papers/pkreg.pdf
         let h = E::G1Affine::hash(message);
         // Check pairings
         let lhs = E::pairing(self.0.s, E::G2Affine::one());
