@@ -109,6 +109,25 @@ impl<E: Engine> AggregateSignature<E> {
         }
         lhs == rhs
     }
+
+    pub fn verify_common_message(
+        &self,
+        message: &[u8],
+        pubkeys: &Vec<&PublicKey<E>>)
+        -> bool
+    {
+        // Messages must be identical
+        // Be warned of the rouge key attack:
+        // https://rist.tech.cornell.edu/papers/pkreg.pdf
+        let h = E::G1Affine::hash(message);
+        // Check pairings
+        let lhs = E::pairing(self.0.s, E::G2Affine::one());
+        let mut rhs = E::Fqk::one();
+        for pubkey in pubkeys {
+            rhs.mul_assign(&E::pairing(h, pubkey.p_pub));
+        }
+        lhs == rhs
+    }
 }
 
 #[cfg(test)]
@@ -140,6 +159,53 @@ mod tests {
             let sig = keypair.sign(&message.as_bytes());
             let cloned_pub = keypair.public.clone();
             assert_eq!(cloned_pub.verify(&message.as_bytes(), &sig), true);
+        }
+    }
+
+    #[test]
+    fn sign_verify_aggregate_common_message() {
+        let mut rng = XorShiftRng::from_seed([0xbc4f6d44, 0xd62f276c, 0xb963afd0, 0x5455863d]);
+
+        let loop_count = 10;
+        let mut pubkeys = Vec::with_capacity(1000);
+        let mut signatures = Vec::with_capacity(1000);
+        let message = ">16 character indentical message".as_bytes();
+        for _ in 0..loop_count {
+            let keypair = Keypair::<Bls12>::generate(&mut rng);
+            let signature = keypair.sign(&message);
+            pubkeys.push(keypair.public);
+            signatures.push(signature);
+
+            let asig = AggregateSignature::from_signatures(&signatures);
+            assert_eq!(
+                asig.verify_common_message(&message, &pubkeys.iter().map(|&ref pk| pk).collect()),
+                true
+            );
+        }
+    }
+
+    #[test]
+    fn sign_verify_aggregate_common_message_missing_sig() {
+        let mut rng = XorShiftRng::from_seed([0xbc4f6d44, 0xd62f276c, 0xb963afd0, 0x5455863d]);
+
+        let loop_count = 10;
+        let skipped_sig = loop_count / 2;
+        let mut pubkeys = Vec::with_capacity(1000);
+        let mut signatures = Vec::with_capacity(1000);
+        let message = ">16 character indentical message".as_bytes();
+        for i in 0..loop_count {
+            let keypair = Keypair::<Bls12>::generate(&mut rng);
+            let signature = keypair.sign(&message);
+            pubkeys.push(keypair.public);
+            if i != skipped_sig {
+                signatures.push(signature);
+            }
+
+            let asig = AggregateSignature::from_signatures(&signatures);
+            assert_eq!(
+                asig.verify_common_message(&message, &pubkeys.iter().map(|&ref pk| pk).collect()),
+                i < skipped_sig
+            );
         }
     }
 
