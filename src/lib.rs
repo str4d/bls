@@ -163,32 +163,48 @@ mod tests {
     }
 
     #[test]
-    fn sign_verify_aggregate_common_message() {
+    fn test_sign_verify_aggregate_common_message_short() {
+        sign_verify_aggregate_common_message(10);
+    }
+    #[test]
+    #[ignore]
+    fn test_sign_verify_aggregate_common_message_long() {
+        sign_verify_aggregate_common_message(500);
+    }
+    fn sign_verify_aggregate_common_message(loop_count: u32) {
         let mut rng = XorShiftRng::from_seed([0xbc4f6d44, 0xd62f276c, 0xb963afd0, 0x5455863d]);
 
-        let loop_count = 10;
         let mut pubkeys = Vec::with_capacity(1000);
         let mut signatures = Vec::with_capacity(1000);
         let message = ">16 character indentical message".as_bytes();
-        for _ in 0..loop_count {
+        for i in 0..loop_count {
             let keypair = Keypair::<Bls12>::generate(&mut rng);
             let signature = keypair.sign(&message);
             pubkeys.push(keypair.public);
             signatures.push(signature);
 
-            let asig = AggregateSignature::from_signatures(&signatures);
-            assert_eq!(
-                asig.verify_common_message(&message, &pubkeys.iter().map(|&ref pk| pk).collect()),
-                true
-            );
+            if i < 10 || i > (loop_count - 5) {
+                let asig = AggregateSignature::from_signatures(&signatures);
+                assert_eq!(
+                    asig.verify_common_message(&message, &pubkeys.iter().map(|&ref pk| pk).collect()),
+                    true
+                );
+            }
         }
     }
 
     #[test]
-    fn sign_verify_aggregate_common_message_missing_sig() {
+    fn test_sign_verify_aggregate_common_message_missing_sig_short() {
+        sign_verify_aggregate_common_message_missing_sig(10);
+    }
+    #[test]
+    #[ignore]
+    fn test_sign_verify_aggregate_common_message_missing_sig_long() {
+        sign_verify_aggregate_common_message_missing_sig(500);
+    }
+    fn sign_verify_aggregate_common_message_missing_sig(loop_count: u32) {
         let mut rng = XorShiftRng::from_seed([0xbc4f6d44, 0xd62f276c, 0xb963afd0, 0x5455863d]);
 
-        let loop_count = 10;
         let skipped_sig = loop_count / 2;
         let mut pubkeys = Vec::with_capacity(1000);
         let mut signatures = Vec::with_capacity(1000);
@@ -201,11 +217,13 @@ mod tests {
                 signatures.push(signature);
             }
 
-            let asig = AggregateSignature::from_signatures(&signatures);
-            assert_eq!(
-                asig.verify_common_message(&message, &pubkeys.iter().map(|&ref pk| pk).collect()),
-                i < skipped_sig
-            );
+            if i < 10 || i > (loop_count - 5) {
+                let asig = AggregateSignature::from_signatures(&signatures);
+                assert_eq!(
+                    asig.verify_common_message(&message, &pubkeys.iter().map(|&ref pk| pk).collect()),
+                    i < skipped_sig
+                );
+            }
         }
     }
 
