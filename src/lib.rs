@@ -5,6 +5,7 @@ use pairing::{CurveAffine, CurveProjective, Engine, Field};
 use rand::{Rand, Rng};
 use std::collections::HashSet;
 
+#[derive(Debug, PartialEq)]
 pub struct Signature<E: Engine> {
     s: E::G1,
 }
@@ -75,6 +76,7 @@ impl<E: Engine> Keypair<E> {
     }
 }
 
+#[derive(Debug, PartialEq)]
 pub struct AggregateSignature<E: Engine>(Signature<E>);
 
 impl<E: Engine> AggregateSignature<E> {
