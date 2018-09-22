@@ -1,4 +1,4 @@
-# bls [![Crates.io](https://img.shields.io/crates/v/bls.svg)](https://crates.io/crates/bls) #
+**This is an experimental library and is NOT SAFE**
 
 This is a Rust crate for making BLS (Boneh-Lynn-Shacham) signatures. It currently supports the [BLS12-381](https://z.cash/blog/new-snark-curve.html) (Barreto-Lynn-Scott) (yes, I know) construction.
 
