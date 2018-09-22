@@ -143,10 +143,18 @@ mod tests {
     use rand::{SeedableRng, XorShiftRng};
 
     #[test]
-    fn sign_verify() {
+    fn test_sign_verify_short() {
+        sign_verify(10);
+    }
+    #[test]
+    #[ignore]
+    fn test_sign_verify_long() {
+        sign_verify(500);
+    }
+    fn sign_verify(loop_count: u32) {
         let mut rng = XorShiftRng::from_seed([0xbc4f6d44, 0xd62f276c, 0xb963afd0, 0x5455863d]);
 
-        for i in 0..500 {
+        for i in 0..loop_count {
             let keypair = Keypair::<Bls12>::generate(&mut rng);
             let message = format!(">16 character message {}", i);
             let sig = keypair.sign(&message.as_bytes());
@@ -155,10 +163,18 @@ mod tests {
     }
 
     #[test]
-    fn sign_verify_with_cloned_public() {
+    fn test_sign_verify_with_clone_pubic_short() {
+        sign_verify_with_cloned_public(10);
+    }
+    #[test]
+    #[ignore]
+    fn test_sign_verify_with_clone_pubic_long() {
+        sign_verify_with_cloned_public(500);
+    }
+    fn sign_verify_with_cloned_public(loop_count: u32) {
         let mut rng = XorShiftRng::from_seed([0xbc4f6d44, 0xd62f276c, 0xb963afd0, 0x5455863d]);
 
-        for i in 0..500 {
+        for i in 0..loop_count {
             let keypair = Keypair::<Bls12>::generate(&mut rng);
             let message = format!(">16 character message {}", i);
             let sig = keypair.sign(&message.as_bytes());
@@ -233,12 +249,20 @@ mod tests {
     }
 
     #[test]
-    fn aggregate_signatures() {
+    fn aggregate_signatures_short() {
+        aggregate_signatures(20);
+    }
+    #[test]
+    #[ignore]
+    fn aggregate_signatures_long() {
+        aggregate_signatures(500);
+    }
+    fn aggregate_signatures(loop_count: u32) {
         let mut rng = XorShiftRng::from_seed([0xbc4f6d44, 0xd62f276c, 0xb963afd0, 0x5455863d]);
 
         let mut inputs = Vec::with_capacity(1000);
         let mut signatures = Vec::with_capacity(1000);
-        for i in 0..500 {
+        for i in 0..loop_count {
             let keypair = Keypair::<Bls12>::generate(&mut rng);
             let message = format!(">16 character message {}", i);
             let signature = keypair.sign(&message.as_bytes());
@@ -246,7 +270,7 @@ mod tests {
             signatures.push(signature);
 
             // Only test near the beginning and the end, to reduce test runtime
-            if i < 10 || i > 495 {
+            if i < 10 || i > (loop_count - 5) {
                 let asig = AggregateSignature::from_signatures(&signatures);
                 assert_eq!(
                     asig.verify(&inputs
