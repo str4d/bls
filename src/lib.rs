@@ -141,10 +141,12 @@ mod tests {
             if i < 10 || i > 495 {
                 let asig = AggregateSignature::from_signatures(&signatures);
                 assert_eq!(
-                    asig.verify(&inputs
-                        .iter()
-                        .map(|&(ref pk, ref m)| (pk, m.as_bytes()))
-                        .collect()),
+                    asig.verify(
+                        &inputs
+                            .iter()
+                            .map(|&(ref pk, ref m)| (pk, m.as_bytes()))
+                            .collect()
+                    ),
                     true
                 );
             }
@@ -167,10 +169,12 @@ mod tests {
 
         // The first "aggregate" signature should pass
         assert_eq!(
-            asig.verify(&inputs
-                .iter()
-                .map(|&(ref pk, ref m)| (pk, m.as_bytes()))
-                .collect()),
+            asig.verify(
+                &inputs
+                    .iter()
+                    .map(|&(ref pk, ref m)| (pk, m.as_bytes()))
+                    .collect()
+            ),
             true
         );
 
@@ -183,10 +187,12 @@ mod tests {
 
         // The second (now-)aggregate signature should pass
         assert_eq!(
-            asig.verify(&inputs
-                .iter()
-                .map(|&(ref pk, ref m)| (pk, m.as_bytes()))
-                .collect()),
+            asig.verify(
+                &inputs
+                    .iter()
+                    .map(|&(ref pk, ref m)| (pk, m.as_bytes()))
+                    .collect()
+            ),
             true
         );
 
@@ -198,10 +204,12 @@ mod tests {
 
         // The third aggregate signature should fail
         assert_eq!(
-            asig.verify(&inputs
-                .iter()
-                .map(|&(ref pk, ref m)| (pk, m.as_bytes()))
-                .collect()),
+            asig.verify(
+                &inputs
+                    .iter()
+                    .map(|&(ref pk, ref m)| (pk, m.as_bytes()))
+                    .collect()
+            ),
             false
         );
     }
