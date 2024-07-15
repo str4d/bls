@@ -1,60 +1,64 @@
-extern crate pairing;
-extern crate rand;
-
-use pairing::{CurveAffine, CurveProjective, Engine, Field};
-use rand::{Rand, Rng};
+use pairing::{
+    group::{ff::Field, prime::PrimeCurveAffine, Group},
+    Engine,
+};
+use rand_core::RngCore;
 use std::collections::HashSet;
 
-const HASH_KEY: &[u8] = b"BLSSignatureSeed";
-
-pub struct Signature<E: Engine> {
-    s: E::G1,
+pub trait BlsEngine: Engine {
+    fn hash_message(message: &[u8]) -> Self::G1Affine;
 }
 
-pub struct SecretKey<E: Engine> {
+pub struct Signature<E: BlsEngine> {
+    s: E::G1Affine,
+}
+
+pub struct SecretKey<E: BlsEngine> {
     x: E::Fr,
 }
 
-impl<E: Engine> SecretKey<E> {
-    pub fn generate<R: Rng>(csprng: &mut R) -> Self {
+impl<E: BlsEngine> SecretKey<E> {
+    pub fn generate<R: RngCore>(csprng: &mut R) -> Self {
         SecretKey {
-            x: E::Fr::rand(csprng),
+            x: E::Fr::random(csprng),
         }
     }
 
     pub fn sign(&self, message: &[u8]) -> Signature<E> {
-        let h = E::G1Affine::hash(HASH_KEY, message);
-        Signature { s: h.mul(self.x) }
+        let h = E::hash_message(message);
+        Signature {
+            s: (h * self.x).into(),
+        }
     }
 }
 
-pub struct PublicKey<E: Engine> {
-    p_pub: E::G2,
+pub struct PublicKey<E: BlsEngine> {
+    p_pub: E::G2Affine,
 }
 
-impl<E: Engine> PublicKey<E> {
+impl<E: BlsEngine> PublicKey<E> {
     pub fn from_secret(secret: &SecretKey<E>) -> Self {
         // TODO Decide on projective vs affine
         PublicKey {
-            p_pub: E::G2Affine::one().mul(secret.x),
+            p_pub: (E::G2Affine::generator() * secret.x).into(),
         }
     }
 
     pub fn verify(&self, message: &[u8], signature: &Signature<E>) -> bool {
-        let h = E::G1Affine::hash(HASH_KEY, message);
-        let lhs = E::pairing(signature.s, E::G2Affine::one());
-        let rhs = E::pairing(h, self.p_pub);
+        let h = E::hash_message(message);
+        let lhs = E::pairing(&signature.s, &E::G2Affine::generator());
+        let rhs = E::pairing(&h, &self.p_pub);
         lhs == rhs
     }
 }
 
-pub struct Keypair<E: Engine> {
+pub struct Keypair<E: BlsEngine> {
     pub secret: SecretKey<E>,
     pub public: PublicKey<E>,
 }
 
-impl<E: Engine> Keypair<E> {
-    pub fn generate<R: Rng>(csprng: &mut R) -> Self {
+impl<E: BlsEngine> Keypair<E> {
+    pub fn generate<R: RngCore>(csprng: &mut R) -> Self {
         let secret = SecretKey::generate(csprng);
         let public = PublicKey::from_secret(&secret);
         Keypair { secret, public }
@@ -69,11 +73,13 @@ impl<E: Engine> Keypair<E> {
     }
 }
 
-pub struct AggregateSignature<E: Engine>(Signature<E>);
+pub struct AggregateSignature<E: BlsEngine>(Signature<E>);
 
-impl<E: Engine> AggregateSignature<E> {
+impl<E: BlsEngine> AggregateSignature<E> {
     pub fn new() -> Self {
-        AggregateSignature(Signature { s: E::G1::zero() })
+        AggregateSignature(Signature {
+            s: E::G1Affine::identity(),
+        })
     }
 
     pub fn from_signatures(sigs: &Vec<Signature<E>>) -> Self {
@@ -85,7 +91,7 @@ impl<E: Engine> AggregateSignature<E> {
     }
 
     pub fn aggregate(&mut self, sig: &Signature<E>) {
-        self.0.s.add_assign(&sig.s);
+        self.0.s = (self.0.s.to_curve() + sig.s).into();
     }
 
     pub fn verify(&self, inputs: &Vec<(&PublicKey<E>, &[u8])>) -> bool {
@@ -95,11 +101,11 @@ impl<E: Engine> AggregateSignature<E> {
             return false;
         }
         // Check pairings
-        let lhs = E::pairing(self.0.s, E::G2Affine::one());
-        let mut rhs = E::Fqk::one();
+        let lhs = E::pairing(&self.0.s, &E::G2Affine::generator());
+        let mut rhs = E::Gt::identity();
         for input in inputs {
-            let h = E::G1Affine::hash(HASH_KEY, input.1);
-            rhs.mul_assign(&E::pairing(h, input.0.p_pub));
+            let h = E::hash_message(input.1);
+            rhs += E::pairing(&h, &input.0.p_pub);
         }
         lhs == rhs
     }
@@ -109,12 +115,30 @@ impl<E: Engine> AggregateSignature<E> {
 mod tests {
     use super::*;
 
-    use pairing::bls12_381::Bls12;
-    use rand::{SeedableRng, XorShiftRng};
+    use bls12_381::{
+        hash_to_curve::{ExpandMsgXmd, HashToCurve},
+        Bls12,
+    };
+    use rand::SeedableRng;
+    use rand_chacha::ChaChaRng;
+
+    impl BlsEngine for Bls12 {
+        fn hash_message(message: &[u8]) -> Self::G1Affine {
+            <Self::G1 as HashToCurve<ExpandMsgXmd<blake3::Hasher>>>::hash_to_curve(
+                message,
+                b"BLSSignatureSeed",
+            )
+            .into()
+        }
+    }
 
     #[test]
     fn sign_verify() {
-        let mut rng = XorShiftRng::from_seed([0xbc4f6d44, 0xd62f276c, 0xb963afd0, 0x5455863d]);
+        let mut rng = ChaChaRng::from_seed([
+            0x4f, 0x6d, 0x44, 0xbc, 0x2f, 0x27, 0x6c, 0xd6, 0x63, 0xaf, 0xd0, 0xb9, 0x55, 0x86,
+            0x3d, 0x54, 0x4f, 0x6d, 0x44, 0xbc, 0x2f, 0x27, 0x6c, 0xd6, 0x63, 0xaf, 0xd0, 0xb9,
+            0x55, 0x86, 0x3d, 0x54,
+        ]);
 
         for i in 0..500 {
             let keypair = Keypair::<Bls12>::generate(&mut rng);
@@ -126,7 +150,11 @@ mod tests {
 
     #[test]
     fn aggregate_signatures() {
-        let mut rng = XorShiftRng::from_seed([0xbc4f6d44, 0xd62f276c, 0xb963afd0, 0x5455863d]);
+        let mut rng = ChaChaRng::from_seed([
+            0x4f, 0x6d, 0x44, 0xbc, 0x2f, 0x27, 0x6c, 0xd6, 0x63, 0xaf, 0xd0, 0xb9, 0x55, 0x86,
+            0x3d, 0x54, 0x4f, 0x6d, 0x44, 0xbc, 0x2f, 0x27, 0x6c, 0xd6, 0x63, 0xaf, 0xd0, 0xb9,
+            0x55, 0x86, 0x3d, 0x54,
+        ]);
 
         let mut inputs = Vec::with_capacity(1000);
         let mut signatures = Vec::with_capacity(1000);
@@ -141,10 +169,12 @@ mod tests {
             if i < 10 || i > 495 {
                 let asig = AggregateSignature::from_signatures(&signatures);
                 assert_eq!(
-                    asig.verify(&inputs
-                        .iter()
-                        .map(|&(ref pk, ref m)| (pk, m.as_bytes()))
-                        .collect()),
+                    asig.verify(
+                        &inputs
+                            .iter()
+                            .map(|&(ref pk, ref m)| (pk, m.as_bytes()))
+                            .collect()
+                    ),
                     true
                 );
             }
@@ -153,7 +183,11 @@ mod tests {
 
     #[test]
     fn aggregate_signatures_duplicated_messages() {
-        let mut rng = XorShiftRng::from_seed([0xbc4f6d44, 0xd62f276c, 0xb963afd0, 0x5455863d]);
+        let mut rng = ChaChaRng::from_seed([
+            0x4f, 0x6d, 0x44, 0xbc, 0x2f, 0x27, 0x6c, 0xd6, 0x63, 0xaf, 0xd0, 0xb9, 0x55, 0x86,
+            0x3d, 0x54, 0x4f, 0x6d, 0x44, 0xbc, 0x2f, 0x27, 0x6c, 0xd6, 0x63, 0xaf, 0xd0, 0xb9,
+            0x55, 0x86, 0x3d, 0x54,
+        ]);
 
         let mut inputs = Vec::new();
         let mut asig = AggregateSignature::new();
@@ -167,10 +201,12 @@ mod tests {
 
         // The first "aggregate" signature should pass
         assert_eq!(
-            asig.verify(&inputs
-                .iter()
-                .map(|&(ref pk, ref m)| (pk, m.as_bytes()))
-                .collect()),
+            asig.verify(
+                &inputs
+                    .iter()
+                    .map(|&(ref pk, ref m)| (pk, m.as_bytes()))
+                    .collect()
+            ),
             true
         );
 
@@ -183,10 +219,12 @@ mod tests {
 
         // The second (now-)aggregate signature should pass
         assert_eq!(
-            asig.verify(&inputs
-                .iter()
-                .map(|&(ref pk, ref m)| (pk, m.as_bytes()))
-                .collect()),
+            asig.verify(
+                &inputs
+                    .iter()
+                    .map(|&(ref pk, ref m)| (pk, m.as_bytes()))
+                    .collect()
+            ),
             true
         );
 
@@ -198,10 +236,12 @@ mod tests {
 
         // The third aggregate signature should fail
         assert_eq!(
-            asig.verify(&inputs
-                .iter()
-                .map(|&(ref pk, ref m)| (pk, m.as_bytes()))
-                .collect()),
+            asig.verify(
+                &inputs
+                    .iter()
+                    .map(|&(ref pk, ref m)| (pk, m.as_bytes()))
+                    .collect()
+            ),
             false
         );
     }
